@@ -1,0 +1,131 @@
+{
+  "patient": {
+    "name": "Aarav Sharma",
+    "age": 34,
+    "bloodGroup": "B+",
+    "primaryDoctor": "Dr. Meera Nair",
+    "emergencyContact": "Nisha Sharma | +91 98XXXXXXX",
+    "conditions": ["Type 2 Diabetes", "Hypertension", "Seasonal asthma"],
+    "allergies": ["Penicillin", "Shellfish"]
+  },
+  "timeline": [
+    {
+      "id": 1,
+      "date": "2026-03-28",
+      "title": "Quarterly blood panel uploaded",
+      "detail": "HbA1c 7.1%, vitamin D slightly low, kidney markers stable.",
+      "type": "Report"
+    },
+    {
+      "id": 2,
+      "date": "2026-03-21",
+      "title": "Consultation with endocrinologist",
+      "detail": "Medication timing adjusted and diet consistency emphasized.",
+      "type": "Doctor"
+    },
+    {
+      "id": 3,
+      "date": "2026-03-15",
+      "title": "Blood pressure trend reviewed",
+      "detail": "Evening readings were elevated for three consecutive days.",
+      "type": "Vitals"
+    },
+    {
+      "id": 4,
+      "date": "2026-03-08",
+      "title": "Medication adherence dip",
+      "detail": "Two missed night doses were logged during travel week.",
+      "type": "Medication"
+    }
+  ],
+  "reports": [
+    {
+      "id": 1,
+      "name": "CBC + HbA1c Report",
+      "date": "2026-03-28",
+      "status": "Reviewed",
+      "doctor": "Dr. Meera Nair"
+    },
+    {
+      "id": 2,
+      "name": "Chest X-ray Summary",
+      "date": "2026-02-17",
+      "status": "Needs follow-up",
+      "doctor": "Dr. Aditya Rao"
+    },
+    {
+      "id": 3,
+      "name": "Annual Physical Assessment",
+      "date": "2026-01-05",
+      "status": "Reviewed",
+      "doctor": "Dr. Meera Nair"
+    }
+  ],
+  "medications": [
+    {
+      "id": 1,
+      "name": "Metformin",
+      "dose": "500 mg",
+      "schedule": "After breakfast and dinner",
+      "adherence": "92%"
+    },
+    {
+      "id": 2,
+      "name": "Telmisartan",
+      "dose": "40 mg",
+      "schedule": "Every night at 9:00 PM",
+      "adherence": "97%"
+    },
+    {
+      "id": 3,
+      "name": "Salbutamol Inhaler",
+      "dose": "As needed",
+      "schedule": "Use during wheezing episodes",
+      "adherence": "Available"
+    }
+  ],
+  "consultations": [
+    {
+      "id": 1,
+      "doctor": "Dr. Meera Nair",
+      "specialty": "Endocrinology",
+      "date": "2026-03-21",
+      "summary": "Discussed sugar variability, late dinners, and consistency of medication timing.",
+      "nextSteps": ["Repeat HbA1c in 3 months", "Add evening walk 4 days a week", "Track fasting sugar daily"]
+    },
+    {
+      "id": 2,
+      "doctor": "Dr. Aditya Rao",
+      "specialty": "Pulmonology",
+      "date": "2026-02-17",
+      "summary": "Reviewed cough history and advised tracking triggers, sleep quality, and inhaler usage.",
+      "nextSteps": ["Schedule spirometry if symptoms return", "Avoid smoke exposure", "Keep rescue inhaler accessible"]
+    }
+  ],
+  "vitals": [
+    {
+      "id": 1,
+      "label": "Blood pressure",
+      "value": "132/84",
+      "note": "Slightly high in evenings"
+    },
+    {
+      "id": 2,
+      "label": "Fasting sugar",
+      "value": "118 mg/dL",
+      "note": "Better than last week"
+    },
+    {
+      "id": 3,
+      "label": "Weight",
+      "value": "76.4 kg",
+      "note": "Stable this month"
+    },
+    {
+      "id": 4,
+      "label": "Sleep",
+      "value": "6.8 hrs",
+      "note": "Needs improvement"
+    }
+  ]
+}

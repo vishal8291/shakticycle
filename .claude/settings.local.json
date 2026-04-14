@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Desktop_Commander__read_file",
+      "Bash(rm -rf src dist public test docs)",
+      "Bash(rm -f index.html vite.config.js)",
+      "Bash(node scripts/generate-assets.mjs)",
+      "Bash(rm -f app/\\\\\\(app\\\\\\)/insights.tsx app/\\\\\\(app\\\\\\)/profile.tsx)",
+      "Bash(mkdir -p app/\\\\\\(app\\\\\\)/more)",
+      "Bash(npm view:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(node -e \"import\\(''mongoose''\\).then\\(m => m.default.connect\\(process.env.MONGODB_URI || ''mongodb+srv://vishaltiwari101999_db_user:vish2323@cluster0.bsi7jvp.mongodb.net/healthmap?retryWrites=true&w=majority&appName=Cluster0''\\).then\\(\\(\\) => { console.log\\(''SUCCESS: MongoDB connected''\\); process.exit\\(0\\) }\\).catch\\(e => { console.error\\(''FAILED:'', e.message\\); process.exit\\(1\\) }\\)\\)\")",
+      "Bash(wc -l \"F:/shakticycle/mobile/app/\\(app\\)/more/terms.tsx\" \"F:/shakticycle/mobile/app/\\(app\\)/more/privacy.tsx\")",
+      "Bash(cat -n \"F:/shakticycle/mobile/app/\\(auth\\)/signup.tsx\")",
+      "Bash(ls F:/shakticycle/mobile/app/\\\\\\(app\\\\\\)/more/)",
+      "Bash(node -e \"import\\(''./server/data/indianFoods.js''\\).then\\(m => { console.log\\(''Foods:'', m.INDIAN_FOODS.length\\); console.log\\(''Conditions:'', Object.keys\\(m.CONDITION_FOODS\\)\\); console.log\\(''Meal plans:'', Object.keys\\(m.MEAL_PLANS\\)\\); console.log\\(''Search ragi:'', m.searchFoods\\(''ragi''\\).map\\(f=>f.name\\)\\); console.log\\(''Condition diabetes:'', m.getFoodsForCondition\\(''diabetes''\\).recommendedFoods.length, ''recommended''\\); }\\).catch\\(e => console.error\\(e\\)\\)\")",
+      "Bash(netstat -ano)",
+      "Bash(tasklist)",
+      "Bash(taskkill //F //PID 25100)",
+      "WebSearch",
+      "Bash(grep -r \"TODO\\\\|FIXME\\\\|XXX\\\\|HACK\\\\|dummy\\\\|placeholder\\\\|fake\\\\|test\" /f/shakticycle/mobile/app /f/shakticycle/mobile/src --include=*.tsx --include=*.ts)",
+      "Bash(grep -r console. /f/shakticycle/mobile/app /f/shakticycle/mobile/src --include=*.tsx --include=*.ts)",
+      "Bash(findstr :3001)",
+      "Bash(taskkill /PID 23964 /F)",
+      "Bash(cmd //c \"taskkill /PID 23964 /F\")",
+      "Bash(node -e \"import\\(''./server/services/aiService.js''\\).then\\(m => { console.log\\(''AI Service loaded OK''\\); console.log\\(''Gemini configured:'', m.isGeminiConfigured\\(\\)\\); console.log\\(''Rate limit test:'', m.checkRateLimit\\(''test123'', false\\)\\); console.log\\(''Context builder:'', typeof m.buildFullHealthContext\\); }\\).catch\\(e => console.error\\(''ERROR:'', e.message\\)\\)\")"
+    ]
+  }
+}
