@@ -4,3 +4,7 @@ dist
 *.log
 .env
 .env.local
+
+# Never commit uploaded user files (medical reports, images) to git
+server/uploads/
+!server/uploads/.gitkeep
