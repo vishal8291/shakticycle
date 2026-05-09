@@ -41,14 +41,14 @@ import {
 const PORT = Number(process.env.PORT || 3001)
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || '*'
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || ''
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me'
+const JWT_SECRET = process.env.JWT_SECRET || ''
 const MAX_BODY_BYTES = 50 * 1024
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 const UPLOAD_DIR = resolve('server/uploads')
 const isProd = process.env.NODE_ENV === 'production'
 
-if (isProd && JWT_SECRET === 'dev-secret-change-me') {
-  throw new Error('JWT_SECRET must be set to a secure value in production.')
+if (!JWT_SECRET || JWT_SECRET === 'dev-secret-change-me') {
+  throw new Error('JWT_SECRET environment variable must be set to a secure random value before starting the server.')
 }
 
 if (JWT_SECRET.length < 24) {
@@ -185,9 +185,15 @@ function sendFile(response, filePath, mimeType) {
   createReadStream(filePath).pipe(response)
 }
 
+// Only trust X-Forwarded-For when TRUST_PROXY=true (i.e. running behind Render/Nginx reverse proxy).
+// Without this flag an attacker can rotate IPs by forging the header and bypass rate limits.
+const TRUST_PROXY = process.env.TRUST_PROXY === 'true'
+
 function getClientKey(request) {
-  const forwarded = request.headers['x-forwarded-for']
-  if (typeof forwarded === 'string' && forwarded.length > 0) return forwarded.split(',')[0].trim()
+  if (TRUST_PROXY) {
+    const forwarded = request.headers['x-forwarded-for']
+    if (typeof forwarded === 'string' && forwarded.length > 0) return forwarded.split(',')[0].trim()
+  }
   return request.socket.remoteAddress || 'unknown'
 }
 
@@ -247,14 +253,24 @@ async function readMultipart(request) {
     })
 
     busboy.on('file', (name, file, info) => {
-      const extension = extname(info.filename || '')
+      // Strict allowlist: only PDF and common image formats (medical reports)
+      const ALLOWED_MIME = new Set(['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'])
+      const ALLOWED_EXT = new Set(['.pdf', '.jpg', '.jpeg', '.png', '.webp'])
+      const clientMime = (info.mimeType || '').toLowerCase().split(';')[0].trim()
+      const extension = extname(info.filename || '').toLowerCase()
+      if (!ALLOWED_MIME.has(clientMime) || !ALLOWED_EXT.has(extension)) {
+        failed = true
+        rejectPromise(new Error('Only PDF, JPG, PNG, and WebP files are allowed.'))
+        file.resume() // drain and discard the stream
+        return
+      }
       const safeBase = `${Date.now()}-${Math.round(Math.random() * 1e9)}`
       const savedName = `${safeBase}${extension}`
       const filePath = join(UPLOAD_DIR, savedName)
       fileMeta = {
         fieldName: name,
         originalFileName: info.filename || 'upload',
-        mimeType: info.mimeType || 'application/octet-stream',
+        mimeType: clientMime,
         fileName: savedName,
         filePath,
       }
@@ -561,8 +577,10 @@ async function getUserFromRequest(request) {
   const header = request.headers.authorization || ''
   if (!header.startsWith('Bearer ')) return null
   const token = header.slice(7)
-  const decoded = jwt.verify(token, JWT_SECRET)
-  return User.findById(decoded.id)
+  const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] })
+  const user = await User.findById(decoded.id)
+  if (!user || user.banned) return null
+  return user
 }
 
 async function getRecordForUser(userId) {
@@ -681,11 +699,30 @@ const server = createServer(async (request, response) => {
     }
 
     if (method === 'GET' && url.startsWith('/uploads/')) {
-      const fileName = url.replace('/uploads/', '')
-      const filePath = join(UPLOAD_DIR, fileName)
+      // Require authentication to access medical report files
+      const fileUser = await getUserFromRequest(request).catch(() => null)
+      if (!fileUser) {
+        sendJson(response, 401, { error: 'Unauthorized' })
+        return
+      }
+      // Prevent path traversal: only allow simple filenames, no slashes or dots that escape
+      const rawName = url.replace('/uploads/', '').split('/')[0]
+      const fileName = rawName.replace(/\.\./g, '')
+      const filePath = resolve(join(UPLOAD_DIR, fileName))
+      // Ensure resolved path stays inside UPLOAD_DIR
+      if (!filePath.startsWith(UPLOAD_DIR + '/') && filePath !== UPLOAD_DIR) {
+        sendJson(response, 403, { error: 'Forbidden' })
+        return
+      }
       const fileStat = await stat(filePath)
       if (!fileStat.isFile()) throw new Error('File not found.')
-      sendFile(response, filePath)
+      // Force download; never render HTML/SVG in browser context
+      response.writeHead(200, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Access-Control-Allow-Origin': CLIENT_ORIGIN,
+      })
+      createReadStream(filePath).pipe(response)
       return
     }
 
@@ -852,7 +889,7 @@ const server = createServer(async (request, response) => {
     }
 
     if (method === 'POST' && url === '/api/push/register') {
-      const body = await parseJsonBody(request)
+      const body = await readBody(request)
       const pushToken = typeof body.pushToken === 'string' ? body.pushToken.trim() : ''
       const platform = typeof body.platform === 'string' ? body.platform.trim() : ''
       if (!pushToken) {
@@ -868,7 +905,7 @@ const server = createServer(async (request, response) => {
     }
 
     if (method === 'POST' && url === '/api/push/unregister') {
-      const body = await parseJsonBody(request)
+      const body = await readBody(request)
       const pushToken = typeof body.pushToken === 'string' ? body.pushToken.trim() : ''
       user.pushTokens = (user.pushTokens || []).filter((entry) => entry.token !== pushToken)
       await user.save()
@@ -1237,8 +1274,17 @@ const server = createServer(async (request, response) => {
 
     if (method === 'POST' && url === '/api/abha/connect') {
       const payload = await readBody(request)
+      // Sanitize ABHA fields: only allow digits/hyphens for number, alphanumeric/@/. for address
+      const rawAbhaNumber = typeof payload.abhaNumber === 'string' ? payload.abhaNumber.trim() : ''
+      const rawAbhaAddress = typeof payload.abhaAddress === 'string' ? payload.abhaAddress.trim() : ''
+      const abhaNumber = rawAbhaNumber.replace(/[^0-9-]/g, '').slice(0, 20)
+      const abhaAddress = rawAbhaAddress.replace(/[^a-zA-Z0-9@._-]/g, '').slice(0, 100)
+      if (!abhaNumber && !abhaAddress) {
+        sendJson(response, 400, { error: 'Provide a valid ABHA number or ABHA address.' })
+        return
+      }
       const record = await getRecordForUser(user._id)
-      record.patient = { ...record.patient, abhaNumber: payload.abhaNumber || record.patient.abhaNumber, abhaAddress: payload.abhaAddress || record.patient.abhaAddress, abdmLinked: true, consentStatus: 'Linked locally - discovery pending', lastAbdmSync: record.patient.lastAbdmSync || '' }
+      record.patient = { ...record.patient, abhaNumber: abhaNumber || record.patient.abhaNumber, abhaAddress: abhaAddress || record.patient.abhaAddress, abdmLinked: true, consentStatus: 'Linked locally - discovery pending', lastAbdmSync: record.patient.lastAbdmSync || '' }
       const saved = await saveRecord(record, user._id)
       sendJson(response, 200, saved)
       return
@@ -1347,26 +1393,8 @@ const server = createServer(async (request, response) => {
       return
     }
 
-    if (method === 'POST' && url === '/api/subscription/upgrade') {
-      const body = await readBody(request)
-      const plan = body.plan
-      if (!plan || !['premium', 'family'].includes(plan)) {
-        sendJson(response, 400, { error: 'Invalid plan. Must be "premium" or "family".' })
-        return
-      }
-      const features = plan === 'family'
-        ? { aiInsights: true, unlimitedReports: true, exportPdf: true, familyMembers: 5, prioritySupport: true, advancedAnalytics: true, aiChat: true, customReminders: true }
-        : { aiInsights: true, unlimitedReports: true, exportPdf: true, familyMembers: 0, prioritySupport: true, advancedAnalytics: true, aiChat: true, customReminders: true }
-      const now = new Date()
-      const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
-      const sub = await Subscription.findOneAndUpdate(
-        { userId: user._id },
-        { plan, status: 'active', features, currentPeriodStart: now, currentPeriodEnd: periodEnd, cancelledAt: null },
-        { new: true, upsert: true }
-      )
-      sendJson(response, 200, { subscription: sub })
-      return
-    }
+    // NOTE: Direct subscription upgrade without payment is intentionally removed.
+    // Subscription activation must go through /api/payment/create-order → /api/payment/verify.
 
     if (method === 'POST' && url === '/api/subscription/cancel') {
       const freeFeatures = {
@@ -1439,7 +1467,7 @@ const server = createServer(async (request, response) => {
     if (method === 'POST' && url === '/api/payment/verify') {
       const body = await readBody(request)
       if (!body) return
-      const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan } = body
+      const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = body
 
       if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
         sendJson(response, 400, { error: 'Missing payment details' })
@@ -1452,13 +1480,22 @@ const server = createServer(async (request, response) => {
         return
       }
 
-      // Update payment record
-      await Payment.findOneAndUpdate(
-        { razorpayOrderId: razorpay_order_id },
-        { razorpayPaymentId: razorpay_payment_id, razorpaySignature: razorpay_signature, status: 'paid' }
-      )
+      // Look up the original plan from the server-side payment record.
+      // We NEVER trust the plan submitted by the client — it must match what was ordered.
+      const paymentRecord = await Payment.findOne({ razorpayOrderId: razorpay_order_id, userId: user._id })
+      if (!paymentRecord) {
+        sendJson(response, 404, { error: 'Order not found for this account' })
+        return
+      }
+      const plan = paymentRecord.plan
 
-      // Activate subscription
+      // Mark payment as paid
+      paymentRecord.razorpayPaymentId = razorpay_payment_id
+      paymentRecord.razorpaySignature = razorpay_signature
+      paymentRecord.status = 'paid'
+      await paymentRecord.save()
+
+      // Activate subscription using the server-verified plan
       let sub = await Subscription.findOne({ userId: user._id })
       if (!sub) sub = new Subscription({ userId: user._id })
       const features = plan === 'family'
@@ -1569,7 +1606,7 @@ const server = createServer(async (request, response) => {
         const search = adminUrl.searchParams.get('q') || ''
         const query = search ? { $or: [{ fullName: { $regex: search, $options: 'i' } }, { email: { $regex: search, $options: 'i' } }] } : {}
         const [users, total] = await Promise.all([
-          User.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).select('-passwordHash -loginOtpCodeHash -passwordResetCodeHash').lean(),
+          User.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).select('-passwordHash -loginOtpCodeHash -passwordResetCodeHash -googleId -pushTokens').lean(),
           User.countDocuments(query),
         ])
         sendJson(response, 200, { users, total, page, pages: Math.ceil(total / limit) })

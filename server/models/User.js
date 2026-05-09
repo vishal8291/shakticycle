@@ -14,6 +14,7 @@ const userSchema = new mongoose.Schema(
     loginOtpCodeHash: { type: String, default: '' },
     loginOtpExpiresAt: { type: Date, default: null },
     role: { type: String, default: 'patient' },
+    banned: { type: Boolean, default: false },
     pushTokens: {
       type: [
         new mongoose.Schema(
